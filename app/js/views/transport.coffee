@@ -1,50 +1,46 @@
 Seq25.TransportView = Ember.View.extend
   didInsertElement: ->
-    Mousetrap.bind("t", => @keyEvent( => @gotoSummary()))
+    Seq25.Keystrokes.partfn = (n) => @partForKey.call(@, n)
 
-    Mousetrap.bind("space", (e) =>
-      e.preventDefault()
-      @keyEvent( => @get('controller').send('play')))
+    Seq25.Keystrokes.registerKeyPressEvents
+      "t": (n, p) => @gotoSummary.call(@)
+      "g": (n, p) => @gotoPart(p)
+      "m": (n, p) => @mutePart(p)
+      "o": (n, p) => @muteAllPartsExcept(p)
+      "b": (n, p) => @changeBeatsForPart(p, "up", n)
+      "x": (n, p) => @changeQuantForPart(p, n)
+      "n": (n, p) => @bumpVolumeForPart(p, "up", n)
+      "shift+o": => @unmuteAll()
+      "shift+m": => @muteAll()
 
-    'q w e r a s d f'.w().forEach (partKey) =>
-      Mousetrap.bind "g #{partKey}", =>
-        @keyEvent( => @gotoPart(partKey.toUpperCase()))
-      Mousetrap.bind "m #{partKey}", =>
-        @keyEvent( => @mutePart(partKey.toUpperCase()))
-      Mousetrap.bind "b #{partKey}", =>
-        @keyEvent( (num) => @changeBeatsForPart(partKey.toUpperCase(), "up", num))
-      Mousetrap.bind "x #{partKey}", =>
-        @keyEvent( (num) => @changeQuantForPart(partKey.toUpperCase(), num))
-      Mousetrap.bind "n #{partKey}", =>
-        @keyEvent( (num) => @bumpVolumeForPart(partKey.toUpperCase(), "up", num))
-      Mousetrap.bind "shift+n #{partKey}", =>
-        @keyEvent( (num) => @bumpVolumeForPart(partKey.toUpperCase(), "down", num))
-
-    '0 1 2 3 4 5 6 7 8 9'.w().forEach (number) =>
-      Mousetrap.bind(number, => Seq25.numStack.push(number))
+    Seq25.Keystrokes.registerKeyDownEvents
+      "shift+n": (n, p) => @bumpVolumeForPart(p, "down", n)
+      "space":   (n, p) =>
+        @get('controller').send('play')
+        return true
 
   tagName: 'section'
 
-  partForKey: (name) -> @get('controller').get("song").getPart(name)
+  partForKey: (name) ->
+    if name
+      @get('controller').get("song").getPart(name) || name
+    else
+      @get('controller').get("song").getPart(@currentPart())
 
-  gotoPart: (partKey) ->
-    part = @partForKey(partKey)
-    if part
+  gotoPart: (part) ->
+    if /[QWERASDF]/i.test(part)
+      @get('controller.controllers.songIndex').send('addPart', part)
+    else
       @get('controller').transitionToRoute('part', part)
-    else
-      @get('controller').send('addPart', partKey)
 
-  mutePart: (partKey) ->
-    @partForKey(partKey)?.toggle @get('controller').get('progress')
+  bumpVolumeForPart: (part, direction="up", num) ->
+    part.bumpVolume?(direction, num)
 
-  bumpVolumeForPart: (partKey, direction="up", num) ->
-    @partForKey(partKey)?.bumpVolume(direction, num)
-
-  changeBeatsForPart: (partKey, direction="up", num) ->
+  changeBeatsForPart: (part, direction="up", num) ->
     if num is 1
-      @partForKey(partKey)?.incrementProperty("beat_count", num)
+      part.incrementProperty?("beat_count", num)
     else
-      @partForKey(partKey)?.set("beat_count", num)
+      part.set?("beat_count", num)
 
   changeQuantForPart: (partKey, num) ->
     if num is 1
@@ -53,23 +49,26 @@ Seq25.TransportView = Ember.View.extend
       @get('controller.controllers.part').set("quant", num)
 
   gotoSummary: ->
-    @get('controller').transitionToRoute('parts')
+    this.get('controller').transitionToRoute('song')
 
-  keyEvent: (handler) ->
-    handler(Seq25.numStack.drain())
+  currentPart: ->
+    @get('controller.currentPart')
 
-class Seq25.NumStack
-  stack: []
-
-  push: (num) ->
-    @stack.push(num)
-
-  drain: () ->
-    if @stack.length is 0
-      num = 1
+  mutePart: (part) ->
+    if part
+      part.toggle?()
     else
-      num = parseInt(@stack.join(''))
-    @stack = []
-    num
+      @muteAll()
 
-Seq25.numStack = new Seq25.NumStack()
+  muteAllPartsExcept: (part) ->
+    if part
+      @muteAll()
+      @mutePart(part)
+    else
+      @unmuteAll()
+
+  unmuteAll: ->
+    @get('controller').unmuteAll()
+
+  muteAll: ->
+    @get('controller').muteAll()

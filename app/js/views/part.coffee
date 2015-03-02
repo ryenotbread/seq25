@@ -1,28 +1,20 @@
 Seq25.PartView = Ember.View.extend
+  target: Em.computed.alias 'controller'
 
   didInsertElement: ->
-    Mousetrap.bind 'c', =>
-      @keyEvent( => @get('controller').send('createNote'))
-      return false
+    Seq25.Keystrokes.bind 'c', =>
+      @send('createNote')
 
-    Mousetrap.bind 'backspace', =>
-      @keyEvent( => @get('controller').send('removeNotes'))
-      return false
-
-    Mousetrap.bind 'shift+right', =>
-      @keyEvent( (num) => @get('controller').send('extendNotes', num))
-
-    Mousetrap.bind 'shift+left', =>
-      @keyEvent( (num) => @get('controller').send('shortenNotes', num))
-
-    Mousetrap.bind 'left', =>
-      @keyEvent( (num) => @get('controller').send('nudgeLeft', num))
-
-    Mousetrap.bind 'right', =>
-      @keyEvent( (num) => @get('controller').send('nudgeRight', num))
-
-  keyEvent: (handler) ->
-    handler(Seq25.numStack.drain())
-
-  willDestroyElement: ->
-    Mousetrap.unbind('backspace left right'.w())
+    Seq25.Keystrokes.registerKeyDownEvents
+      'backspace': => @send('removeNotes'); return true
+      'shift+right': (num) => @send('extendNotes', num)
+      'shift+left':  (num) => @send('shortenNotes', num)
+      'left':        (num) => @send('nudgeLeft', num)
+      'right':       (num) => @send('nudgeRight', num)
+      'up':    (num) => @send('moveUp', num); return true
+      'down':  (num) => @send('moveDown', num); return true
+      'ctrl+shift+right': (num) => @send('addNoteRight', num)
+      'ctrl+shift+left': (num) => @send('addNoteLeft', num)
+      'ctrl+shift+up': (num) => @send('addNoteUp', num)
+      'ctrl+shift+down': (num) => @send('addNoteDown', num)
+      'v': (num) => @send 'setVelocity', num

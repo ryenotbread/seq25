@@ -1,0 +1,23 @@
+<section id='songs'>
+  <button {{action 'addSong' }}>+</button>
+  <ul>
+    {{#each}}
+    <li class='song'>
+      <header class='actions'>
+        <button {{action 'removeSong' this }}>-</button>
+        <button {{action 'sendToServer' this }}>&uparrow;</button>
+      </header>
+      {{#link-to 'song' id }}
+        {{view 'notesSummary' content=notes}}
+      {{/link-to}}
+    </li>
+    {{/each}}
+    {{#each remoteSongs}}
+    <li>
+      {{#link-to 'loadSong' id }}
+        {{id}}
+      {{/link-to}}
+    </li>
+    {{/each}}
+  </ul>
+</section>

@@ -1,35 +1,17 @@
-module 'Feature: user moves note',
-  setup: ->
-    Seq25.ApplicationAdapter = DS.LSAdapter.extend namespace: 'seq25test'
-
-  teardown: ->
-    delete localStorage.seq25test
-    Seq25.reset()
+feature 'Feature: user moves note'
 
 test 'move note when is quant is 0', ->
-  visit('/')
-  click('li.empty')
 
-  andThen -> #set beats to 20 for nice %s
-    keyTrigger("2")
-    keyTrigger("0")
-    keyTrigger("b q")
-
-  andThen ->
-    keyTrigger("c")
-
-  andThen ->
-    keyTrigger("0")
-    keyTrigger("x q")
+  press("2, 0, b")
+  press("c")
+  press("0, x")
 
   andThen ->
     equal(find("input#quant").val(), "0")
 
-  andThen ->
-    equal(left(".notes li"), "0%")
+  assertLeft("0%")
 
-  andThen ->
-    keyTrigger("right")
+  press("right")
 
   andThen ->
     value = left(".notes li")

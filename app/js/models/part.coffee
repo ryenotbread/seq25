@@ -1,52 +1,60 @@
+eachInstrument = ->
+  for _, value of @getProperties 'midiInstruments', 'synthesizers'
+    value.invoke.apply value, arguments
+
 Seq25.Part = DS.Model.extend
-  notes:     DS.hasMany 'note'
-  song:      DS.belongsTo 'song'
-  name:      DS.attr 'string'
-  shape:     DS.attr 'string', defaultValue: 'sine'
-  volume:    DS.attr 'number', defaultValue: 0.75
-  attack:    DS.attr 'number', defaultValue: 0
-  sustain:   DS.attr 'number', defaultValue: 0
-  decay:     DS.attr 'number', defaultValue: 0
-  resonance: DS.attr 'number', defaultValue: 0
-  tempo: Ember.computed.alias('song.tempo')
+  notes:           DS.hasMany 'note'
+  synthesizers:    DS.hasMany 'synthesizer'
+  midiInstruments: DS.hasMany 'midiInstrument'
+  song:            DS.belongsTo 'song'
+  name:            DS.attr 'string'
+  volume:          DS.attr 'number', defaultValue: 0.75
+  beat_count:      DS.attr 'number', defaultValue: 16
+  isMuted:         DS.attr 'boolean', defaultValue: false
+  secondsPerBeat: Em.computed.alias 'song.secondsPerBeat'
 
-  beat_count: DS.attr 'number', defaultValue: 16
-  isMuted: DS.attr 'boolean', defaultValue: false
-  instrument: (->
-    Seq25.Instrument.create(part: this)
-  ).property()
+  totalTicks: Em.computed 'beat_count', ->
+    Seq25.Note.TICKS_PER_BEAT * @get('beat_count')
 
-  duration: (-> @get('beat_count') * 60 / @get('tempo')).property('beat_count', 'tempo')
+  duration: Em.computed 'secondsPerBeat', 'beat_count', ->
+    @get('secondsPerBeat') * @get('beat_count')
 
-  offset: (progress)-> progress * @get('duration') * -1
+  toggle: ->
+    @toggleProperty 'isMuted'
 
-  toggle: (progress)->
-    @set('isMuted', !@get('isMuted'))
-    if @get('isMuted')
-      @stop()
-    else
-      @schedule(progress)
+  schedule: (now, from, to)->
+    {duration, notes} = @getProperties 'duration', 'notes'
+    loopOffset = Math.floor(from / duration) * duration
+    notes.forEach (note)=>
+      start = loopOffset + note.get 'absolueSeconds'
+      while start < to
+        if start >= from
+          eachInstrument.call this, 'play', note, start - now
+        start += duration
 
-  schedule: (progress)->
-    @get('notes').forEach (note)=>
-      note.schedule @offset progress
+  stop: (pitch)->
+    eachInstrument.call this, 'stop', pitch
 
-  stop: ->
-    @get('notes').forEach (note)->
-      note.stop()
+  play: (pitch)->
+    eachInstrument.call this, 'play', pitch
 
-  addNoteAtPoint: (position, pitchNumber, quant)->
+  addNoteAtPoint: (position, quant)->
     @get('notes').createRecord
-      pitchNumber: pitchNumber
-      position:    position
-      beat_count:  @get('beat_count')
-      quant:       quant
+      position:   position
+      beat_count: @get('beat_count')
+      quant:      quant
 
-  removeNote:(note)->
-    note.stop()
-    @get('notes').removeRecord(note)
-    @save()
-    note.destroy()
+  addNote: (pitchNumber, ticks, duration, quant)->
+    @get('notes').createRecord
+      pitchNumber:   pitchNumber
+      absoluteTicks: ticks
+      duration:   duration
+      quant:      quant
+
+  destroyRecord: ->
+    for collection in 'synthesizers midiInstruments notes'.w()
+      @get(collection).invoke 'destroyRecord'
+    @_super()
 
   bumpVolume: (direction, multiplier=1) ->
     amount = 0.1 * multiplier

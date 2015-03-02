@@ -1,55 +1,34 @@
-NOTE_NAMES = "B C C# D D# E F F# G G# A A#".w()
 class Seq25.Midi
-  constructor: ->
-    @scheduled = {"A2": []}
+  constructor: (@output)->
 
-  connect: ->
-    if navigator.requestMIDIAccess
-      navigator.requestMIDIAccess().then(@connectSuccess, @connectFailure)
-    else
-      @connected = false
+  play: (pitch, velocity, channel, start=0, duration)->
+    now = performance.now()
+    noteOnTime = now + (start * 1e3)
+    @sendOnAt(pitch, velocity, channel, noteOnTime)
+    noteOffTime = now + ((start + duration) * 1e3)
+    @sendOffAt(pitch, channel, noteOffTime) if duration
 
-  connectSuccess: (access)=>
-    @output = access.outputs()[0]
-    @connected = true if @output
+  stop: (pitch, channel)->
+    @sendOffAt(pitch, channel, 0)
 
-  connectFailure: =>
-    console.log("midi connection failure")
+  sendOnAt: (pitch, velocity, channel, timeFromNow)->
+    ON = 0x90 ^ channel
+    @output.send [ON, pitch, Math.floor(velocity * 127)], timeFromNow
 
-  sendOnAt: (pitch, timeFromNow) ->
-    scheduledOn = setTimeout((=> @sendOn(pitch)), timeFromNow * 1000)
-    (@scheduled[pitch] ||= []).push(scheduledOn)
+  sendOffAt: (pitch, channel, timeFromNow)->
+    OFF = 0x80 ^ channel
+    @output.send [OFF, pitch, 0x7f], timeFromNow
 
-  sendOffAt: (pitch, timeFromNow) ->
-    scheduledOff = setTimeout((=> @sendOff(pitch)), timeFromNow * 1000)
-    (@scheduled[pitch] ||= []).push(scheduledOff)
-
-  clearAllScheduled: (pitch) ->
-    if @scheduled[pitch]
-      for timeout in @scheduled[pitch]
-        clearTimeout(timeout)
-
-  sendOn: (pitch="A4", velocity=0x7f)=>
-    pitch = @translatePitch(pitch)
-    ON = 0x90
-    if @connected
-      @output.send( [ ON, pitch, velocity ] )
-
-  sendOff: (pitch="A4", velocity=0x7f)=>
-    pitch = @translatePitch(pitch)
-    OFF = 0x80
-    if @connected
-      @output.send( [ OFF, pitch, velocity ] )
-
-  translatePitch: (pitch="A4")->
-    bottomA = 0x47 - 24
-    [octave, note] = @splitPitch(pitch)
-    return bottomA + (NOTE_NAMES.indexOf(note) + (12 * (octave - 2)))
-
-  splitPitch: (pitch)->
-    octave = pitch[2] || pitch[1]
-    note = pitch.replace(octave, '')
-    return [octave, note]
-
-Seq25.midi = new Seq25.Midi()
-Seq25.midi.connect()
+connectionPromise = null
+Seq25.Midi.connect = ->
+  connectionPromise ||= new Em.RSVP.Promise (resolve, reject) ->
+    navigator.requestMIDIAccess()
+    .then (access)->
+      if output = access.outputs.values().next().value
+        resolve(new Seq25.Midi(output))
+      else
+        console.log 'connected, but no outputs'
+        reject()
+    .catch ->
+      console.log "midi connection failure"
+      reject()

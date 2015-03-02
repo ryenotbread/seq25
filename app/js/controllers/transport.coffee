@@ -1,54 +1,65 @@
+BUFFER_TIME = 0.5
+PROGRESS_INTERVAL = 50
 Seq25.TransportController = Ember.ObjectController.extend
-  needs: ['partsIndex', 'part']
+  needs: ['part', 'songIndex']
 
   song: Ember.computed.alias 'model'
 
-  empty: (-> @get('parts').length == 0).property('parts.@each')
+  currentPart: (-> @get('controllers.part.name')).property('controllers.part')
 
-  loopDuration: (->
-    @get('maxBeatCount') * 60 / +@get('tempo')
-  ).property('tempo', 'maxBeatCount')
-
-  currentTime: -> Seq25.audioContext.currentTime
-
-  loopHasEnded: -> @get('progress') >= 1
-
+  context: Em.computed -> @container.resolve 'audioContext:main'
+  currentTime: -> @get('context').currentTime
   startedAt: 0
   progress: 0
-
+  scheduledUntil: 0
   isPlaying: false
 
-  beat: (->
-    Math.floor((@elapsed() * @get('tempo')) / 60)
-  ).property('progress')
+  beat: Em.computed 'progress', 'tempo', ->
+    Math.floor (@get('progress') * @get('tempo')) / 60
 
   elapsed: ->
-    return 0 unless @get('isPlaying')
+    return 0 unless @get 'isPlaying'
     @currentTime() - @get('startedAt')
 
   play: ->
-    @set('startedAt', @currentTime())
-    @set('isPlaying', true)
-    @get('song').schedule(@get('progress'))
-    movePlayBar = =>
-      @set('progress', @elapsed() / @get('loopDuration'))
-      return unless @get('isPlaying')
-      if @loopHasEnded()
-        @set('progress', 0)
-        @play()
-      else
-        requestAnimationFrame movePlayBar
-    requestAnimationFrame movePlayBar
+    @setProperties
+      startedAt: @currentTime()
+      isPlaying: true
+      scheduledUntil: BUFFER_TIME
+
+    {progress, song, scheduledUntil} = @getProperties 'progress', 'song', 'scheduledUntil'
+
+    song.schedule progress, progress, scheduledUntil
+
+    advancePosition = ->
+      return unless @get 'isPlaying'
+      @set('progress', @elapsed())
+      {progress, scheduledUntil} = @getProperties 'progress', 'scheduledUntil'
+      if (progress + BUFFER_TIME) > scheduledUntil
+        newScheduleEnd = scheduledUntil + BUFFER_TIME
+        song.schedule(progress, scheduledUntil, newScheduleEnd)
+        @set 'scheduledUntil', newScheduleEnd
+      Ember.run.later this, advancePosition, PROGRESS_INTERVAL
+
+    Ember.run.later this, advancePosition, PROGRESS_INTERVAL
 
   stop: ->
     @get('song').stop()
-    @set('startedAt', 0)
-    @set('isPlaying', false)
+    @setProperties
+      scheduledUntil: 0
+      startedAt: 0
+      progress: 0
+      isPlaying: false
+
+  muteAll: ->
+   @setMuteForAll(true)
+
+  unmuteAll: ->
+    @setMuteForAll(false)
+
+  setMuteForAll: (val) ->
+    @get('song.parts').forEach( (part) -> part.set('isMuted', val))
 
   actions:
     play: ->
-      return if @get('empty')
       if @get('isPlaying') then @stop() else @play()
-
-    addPart: (name) ->
-      @get('controllers.partsIndex').send("addPart", name)

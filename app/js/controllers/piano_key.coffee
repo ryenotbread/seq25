@@ -1,8 +1,6 @@
 Seq25.PianoKeyController = Ember.ObjectController.extend
   needs: 'part'
-  part: Ember.computed.alias('controllers.part')
-  instrument: Ember.computed.alias('part.instrument')
-
+  part: Ember.computed.alias('controllers.part.model')
   actions:
-    play: -> @get('instrument').play @get('model')
-    stop: -> @get('instrument').stop @get('model')
+    play: -> @get('part').play @get('model')
+    stop: -> @get('part').stop @get('model')

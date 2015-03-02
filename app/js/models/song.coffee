@@ -1,32 +1,30 @@
 Seq25.Song = DS.Model.extend
-  tempo: DS.attr 'number', defaultValue: 120
-  parts: DS.hasMany 'part'
-
-  beatCounts: Ember.computed.mapBy('parts', 'beat_count')
-
-  maxBeatCount: Ember.computed.max('beatCounts')
+  parts:    DS.hasMany 'part'
+  remoteId: DS.attr 'number'
+  tempo:    DS.attr 'number', defaultValue: 120
+  secondsPerBeat: (-> 60 / @get('tempo') ).property('tempo')
 
   getPart: (name)->
     @get('parts').findBy 'name', name
 
-  schedule: (progress)->
-    @get('parts').forEach (part)=>
-      part.schedule progress
+  schedule: (now, from, to)->
+    @get('parts').invoke 'schedule', now, from, to
 
   stop: ->
-    @get('parts').forEach (part)->
-      part.stop()
+    @get('parts').invoke 'stop'
 
-  save: ->
+  destroyRecord: ->
+    @get('parts').invoke 'destroyRecord'
     @_super()
-    @get('parts').invoke 'save'
 
-Seq25.Song.loadDefault = (store)->
-  new Ember.RSVP.Promise (resolve, reject) =>
-    store.find('song').then (songs)=>
-      song = songs.get('firstObject') || store.createRecord('song')
-      store.find('part', song: song.get('id')).then (parts)=>
-        promises = parts.map (part)=>
+  notes: Em.computed 'parts.[]', ->
+    _.flatten(this.get('parts').mapBy('notes.content'))
+
+Seq25.Song.load = (store, id)->
+  new Ember.RSVP.Promise (resolve, reject)->
+    store.find('song', id).then (song)->
+      store.find('part', song: song.get('id')).then (parts)->
+        promises = parts.map (part)->
           store.find 'note', part: part.get('id')
-        Ember.RSVP.Promise.all(promises).then =>
+        Ember.RSVP.Promise.all(promises).then ->
           resolve(song)

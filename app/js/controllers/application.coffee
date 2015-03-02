@@ -1,5 +1,7 @@
 Seq25.ApplicationController = Ember.ObjectController.extend
 
-  tempoSaver: ( ->
-    @get('model').save()
-  ).observes('tempo')
+  showHelp: false
+
+  toggleHelp: ->
+    @toggleProperty('showHelp')
+    @send('openHelp')

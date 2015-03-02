@@ -1,3 +1,6 @@
 Seq25.Router.map ->
-  @resource 'parts', path: '/', ->
-    @resource 'part', path: "/:name"
+  @route 'loadSong', path: '/r/:id'
+  @resource 'songs', path: '/', ->
+    @resource 'song', path: '/:song_id', ->
+      @resource 'part', path: "/:name", ->
+        @route 'instruments'

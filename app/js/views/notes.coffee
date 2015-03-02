@@ -1,57 +1,33 @@
-Seq25.NoteView = Ember.View.extend
-  attributeBindings: ['style']
-  startPercentage: ->
-    beat_count = @get('controller.beat_count')
-    {beat, tick} = @get('content').getProperties('beat', 'tick')
-    ((beat + (tick / 96)) / beat_count) * 100
-
-  style: (->
-   "left: #{@startPercentage()}%; width: #{@durationPercentage()}%"
-  ).property('content.duration', 'content.beat', 'content.tick', 'controller.totalTicks')
-
-  durationPercentage: ->
-    totalTicks = Seq25.Note.TICKS_PER_BEAT * @get('controller.beat_count')
-    (@get('content.duration') / totalTicks) * 100
-
+#
+# Abstract base classes for viewing lists of notes.
+# Check out concrete implementations in notes-edit and notes-summary.
+#
 Seq25.NotesView = Ember.CollectionView.extend
-  itemViewClass: Seq25.NoteView
   tagName: 'ul'
-  classNames: ['notes']
+  classNames: 'notes'
 
-Seq25.NotesEditView = Seq25.NotesView.extend
-  click: (e) ->
-    offsetX = e.pageX - @$().offset().left
-    rowWidth = @$().width()
-    @get('controller').send 'addNote', (offsetX / rowWidth)
+Seq25.NoteView = Ember.View.extend
+  attributeBindings: ['style', 'class']
 
-  itemViewClass: 'noteEdit'
+  totalTicks: Em.computed.alias 'content.part.totalTicks'
 
-Seq25.NoteEditView = Seq25.NoteView.extend
-  classNameBindings: ['isSelected:selected']
-  selectedNotes: Em.computed.alias('controller.controllers.part.selectedNotes')
+  cssAttributes: 'left width top opacity'.w()
 
-  isSelected: ( ->
-    !!@get('selectedNotes').contains(@get('content'))
-  ).property('selectedNotes.@each')
+  left: Em.computed 'content.absoluteTicks', 'totalTicks', ->
+    "#{(@get('content.absoluteTicks') / @get('totalTicks')) * 100}%"
 
-  click: (event) ->
-    if event.shiftKey
-      @toggleSelected()
-    else
-      @selectMeOnly()
-    false
+  width: Em.computed 'content.duration', 'totalTicks', ->
+    "#{(@get('content.duration') / @get('totalTicks')) * 100}%"
 
-  selectMeOnly: ->
-    if @get('isSelected') && @get('selectedNotes.length') == 1
-      @set 'selectedNotes', []
-    else
-      @set 'selectedNotes', [@get('content')]
+  top: Em.computed 'content.pitch', ->
+    percentage = Seq25.Pitch.scaleAtPitch(@get('content.pitch')) * 100
+    "calc(#{percentage}% + 3px)"
 
-  toggleSelected: ->
-    note = @get('content')
-    selectedNotes = @get('selectedNotes')
-    if @get('isSelected')
-      selectedNotes.removeObject(note)
-    else
-      selectedNotes.pushObject(note)
+  opacity: Em.computed 'content.velocity', ->
+    @get("content.velocity")
 
+  style: Em.computed 'left', 'width', 'top', 'height', 'opacity', ->
+    @get('cssAttributes')
+    .map (attribute)=>
+      "#{attribute}: #{@get(attribute)};"
+    .join ' '
